@@ -64,19 +64,10 @@ class Doctor:
                 self.bp_text.insert(tk.END, f"{row['datetime']} — {row['tension']}\n")
     
 
-if __name__=='__main__': 
-    db = DB('projet.db')
+#if __name__=='__main__': 
+    #db = DB('projet.db')
 
-    iddoctor = 2
+    #iddoctor = 2
 
-    doctor = Doctor(iddoctor, db)
+    #doctor = Doctor(iddoctor, db)
 
-    db.show_table('person')
-    print('----------------------')
-    db.show_table('patient')
-    print('----------------------')
-    db.show_table('doctor')
-    print('----------------------')
-    db.show_table('patient_data')
-    print('----------------------')
-    db.show_table('doctor_patient')

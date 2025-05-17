@@ -42,18 +42,3 @@ class Patient:
             messagebox.showerror("Erreur", "Not valid temperature")
 
 
-
-if __name__== "__main__":
-    db = DB("projet.db")
-    idpatient = 1
-    patient= Patient(idpatient, db)
-
-    db.show_table('person')
-    print('----------------------')
-    db.show_table('patient')
-    print('----------------------')
-    db.show_table('doctor')
-    print('----------------------')
-    db.show_table('patient_data')
-    print('----------------------')
-    db.show_table('doctor_patient')

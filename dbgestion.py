@@ -105,13 +105,20 @@ class DB:
         rows = cur.fetchall()
         cur.close()
         return  [dict(zip(['temperature', 'tension', 'datetime'], row)) for row in rows]
-
-
-    def __del__(self):
-        #In the case where the object would destroyed, we want our connection to end smmothly, with commit and close.
-        self.con.commit()
-        self.con.close()
     
+    def get_id_doctor(self, email):
+        cur = self.con.cursor()
+        cur.execute("""SELECT iddoctor FROM person WHERE email = ?;""", (email,))
+        iddoctor = cur.fetchone()
+        return iddoctor[0]
+
+    def get_id_patient(self, email):
+        cur = self.con.cursor()
+        cur.execute("""SELECT idpatient FROM person WHERE email = ?;""", (email,))
+        idpatient = cur.fetchone()
+        cur.close()
+        return idpatient[0]
+
     def show_table(self, table_name):
         cur = self.con.cursor()
         cur.execute(f"SELECT * FROM {table_name};")
@@ -121,59 +128,29 @@ class DB:
             print(row)
 
 
-if __name__ == "__main__":
-    # Création d'une instance de la base
-    db = DB("projet.db")
+    def authentification(self, email, password):
+        cur = self.con.cursor()
+        cur.execute("""SELECT role, password FROM person WHERE email = ?;""", (email,))
+        res = cur.fetchall()
+        if len(res)==0:                 #nobody found with this email 
+            return 0
+        elif res[0][1] == password:
+            return res[0][0]               #return = role
+        else: 
+            return 1                    #there is no correspondance between the password and the email 
 
-    # 1. Ajouter un docteur
-    iddoctor1 = db.insert_doctor(
-        Name="John", LastName="Doe", DateOfBirth="1975-06-15",
-        Email="j.doe@hospital.com", Password="secure123"
-    )
-    iddoctor2 = db.insert_doctor(
-        Name='Louis',LastName= "Chirong", DateOfBirth="2013", 
-        Email="Loulouchichi@hotmail.com", Password="loulouchichi"
-    )
-
-    # 2. Ajouter deux patients
-    idpatient1 = db.insert_patient(
-        PhoneNumber="0456112233", DateOfBirth="1990-01-01",
-        Name="Alice", LastName="Durand", Email="alice@example.com",
-        Password="alicepwd"
-    )
-
-    idpatient2 = db.insert_patient(
-        PhoneNumber="0456445566", DateOfBirth="1988-04-21",
-        Name="Bob", LastName="Martin", Email="bob@example.com",
-        Password="bobpwd"
-    )
-
-    idpatient3 = db.insert_patient(PhoneNumber="0478521362", DateOfBirth="2001-04-07",
-                                   Name='Juliette', LastName='Dedong', Email= "jdedong@gmail.com",
-                                   Password="123456")
-
-    # 3. Lier le docteur aux deux patients
-    db.link_doctor_to_patient(iddoctor1, idpatient1)
-    db.link_doctor_to_patient(iddoctor1, idpatient2)
-    db.link_doctor_to_patient(iddoctor2, idpatient3)
-
-    # 4. Ajouter des données médicales pour un patient
-    db.insert_patient_data(idpatient1, temperature=37.8, tension="125/85")
-    db.insert_patient_data(idpatient1, temperature=38.2, tension="130/90")
-    db.insert_patient_data(idpatient3, 37.8, '125/80')
+    def __del__(self):
+        #In the case where the object would destroyed, we want our connection to end smmothly, with commit and close.
+        self.con.commit()
+        self.con.close()
+    
+    
+    
 
 
-    print("Docteur, patients et données ajoutés avec succès.")
 
-    # 5. Print toutes les tables ainsi voir si ça fonctionne bien
 
-    db.show_table('person')
-    print('----------------------')
-    db.show_table('patient')
-    print('----------------------')
-    db.show_table('doctor')
-    print('----------------------')
-    db.show_table('patient_data')
-    print('----------------------')
-    db.show_table('doctor_patient')
+
+   
+    
 
