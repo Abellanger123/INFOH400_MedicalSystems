@@ -66,3 +66,29 @@ CREATE TABLE doctor_patient (
 );
 """)
 
+cur.execute("""
+
+CREATE TABLE IF NOT EXISTS prescription (
+    idprescription INTEGER PRIMARY KEY AUTOINCREMENT,
+    idpatient INTEGER,
+    medicament TEXT,
+    frequence TEXT,
+    prise INTEGER DEFAULT 0, -- 0 = non pris, 1 = pris
+    horodatage TEXT,
+    FOREIGN KEY(idpatient) REFERENCES patient(idpatient)
+);
+
+""")
+
+cur.execute("""
+
+
+CREATE TABLE IF NOT EXISTS prescription_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prescription_id INTEGER,
+    timestamp TEXT,
+    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id)
+);
+
+
+""")
