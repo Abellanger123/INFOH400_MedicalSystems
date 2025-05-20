@@ -6,45 +6,14 @@ class DB:
         self.con = sql.connect(dbfile)
 
     def insert_person(self, Name, DateOfBirth, LastName, Email, Password, Role):
-        #We create one cursor per action, this ensure that the fetch applied gives the result of the wanted action, not the latest
         cur = self.con.cursor() 
-        #Add a new row to the person table                                                           
         cur.execute("""INSERT INTO person (name, lastname, dateofbirth, email, password, role)
-                        VALUES (?,?,?,?,?,?) RETURNING idperson;""", (Name, LastName, DateOfBirth, Email,Password, Role))   #returning the Idperson because it is generated automatically
-        #Retrieve the added person ID
-        personid = cur.fetchone()[0]
+                    VALUES (?, ?, ?, ?, ?, ?) RETURNING idperson;""",
+                    (Name, LastName, DateOfBirth, Email, Password, Role))
+        idperson = cur.fetchone()[0]
         self.con.commit()
         cur.close()
-        return personid
-    
-    def insert_doctor(self, Name, LastName, DateOfBirth, Email, Password, Role= 'doctor', idperson=None):
-        cur = self.con.cursor() 
-        #If the new doctor is not in our database, we first need to add him as a person
-        if idperson == None:
-            idperson = self.insert_person(Name,DateOfBirth,LastName, Email, Password, Role)    #crée le docteur dans la table personne 
-        #We can then add the doctor and retrieve its ID
-        cur.execute("""INSERT INTO doctor (idperson, d_name, d_lastname)
-                    VALUES (?,?,?) RETURNING iddoctor;""", (idperson, Name, LastName))    #crée la personne dans la table docteur
-        iddoctor = cur.fetchone()[0]
-        #We update the person associated to the doctor in order to be able to find doctor from person
-        cur.execute("""UPDATE person SET iddoctor = ? WHERE idperson = ?;""", (iddoctor, idperson))     #permet de relier ensemble les deux lignes et ainsi savoir que ce sont les mêmes
-        self.con.commit()
-        cur.close()
-        return iddoctor
-    
-    def insert_patient(self, PhoneNumber, DateOfBirth, Name, LastName,Email, Password, Role='patient', idperson=None):
-        cur = self.con.cursor() 
-        #If the new patient is not in our database, we first need to add him as a person
-        if idperson == None:
-            idperson = self.insert_person(Name,DateOfBirth,LastName, Email, Password, Role)    #crée le patient dans la table personne 
-        #We can then add the patient and retrieve its ID
-        cur.execute("""INSERT INTO patient (idperson, phonenumber, p_dateofbirth, p_name, p_lastname)
-                    VALUES (?,?,?,?,?) RETURNING idpatient;""", (idperson, PhoneNumber, DateOfBirth, Name, LastName))    #crée la personne dans la table patient
-        idpatient = cur.fetchone()[0]
-        #We update the person associated to the patient in order to be able to find patient from person
-        cur.execute("""UPDATE person SET idpatient = ? WHERE idperson = ?;""", (idpatient, idperson))     #permet de relier ensemble les deux lignes et ainsi savoir que ce sont les mêmes
-        cur.close()
-        return idpatient
+        return idperson
     
     def insert_patient_data(self, idpatient, temperature, tension, datetime=None):
         cur = self.con.cursor()
@@ -87,14 +56,14 @@ class DB:
     def get_patients_doctor(self, iddoctor):
         cur = self.con.cursor()
         cur.execute("""
-            SELECT p.idpatient, p.p_name, p.p_lastname
+            SELECT p.idperson, p.name, p.lastname
             FROM doctor_patient dp 
-            JOIN patient p ON dp.idpatient = p.idpatient
+            JOIN person p ON dp.idpatient = p.idperson
             WHERE dp.iddoctor = ?
         """,(iddoctor,))
         rows = cur.fetchall()
         cur.close()
-        return [dict(zip(['idpatient', 'name', 'lastname'], row)) for row in rows]
+        return [dict(zip(['idperson', 'name', 'lastname'], row)) for row in rows]
         
     def get_patient_data(self,idpatient):
         cur = self.con.cursor()
@@ -159,18 +128,13 @@ class DB:
         rows = cursor.fetchall()
         return [{'medicament': r[0], 'frequence': r[1], 'prise': r[2]} for r in rows]
     
-    def get_id_doctor(self, email):
+    def get_id_person_by_email(self, email):
         cur = self.con.cursor()
-        cur.execute("""SELECT iddoctor FROM person WHERE email = ?;""", (email,))
-        iddoctor = cur.fetchone()
-        return iddoctor[0]   
-
-    def get_id_patient(self, email):
-        cur = self.con.cursor()
-        cur.execute("""SELECT idpatient FROM person WHERE email = ?;""", (email,))
-        idpatient = cur.fetchone()
+        cur.execute("""SELECT idperson FROM person WHERE email = ?;""", (email,))
+        result = cur.fetchone()
         cur.close()
-        return idpatient[0]
+        return result[0] 
+
     
     def authentification(self, email, password):
         cur = self.con.cursor()
@@ -183,67 +147,4 @@ class DB:
         else: 
             return 1                    #there is no correspondance between the password and the email
 
-
-if __name__ == "__main__":
-    # Création d'une instance de la base
-    db = DB("projet.db")
-
-    # 1. Ajouter un docteur
-    iddoctor1 = db.insert_doctor(
-        Name="John", LastName="Doe", DateOfBirth="1975-06-15",
-        Email="j.doe@hospital.com", Password="secure123"
-    )
-    iddoctor2 = db.insert_doctor(
-        Name='Louis',LastName= "Chirong", DateOfBirth="2013", 
-        Email="Loulouchichi@hotmail.com", Password="loulouchichi"
-    )
-
-    # 2. Ajouter deux patients
-    idpatient1 = db.insert_patient(
-        PhoneNumber="0456112233", DateOfBirth="1990-01-01",
-        Name="Alice", LastName="Durand", Email="alice@example.com",
-        Password="alicepwd"
-    )
-
-    idpatient2 = db.insert_patient(
-        PhoneNumber="0456445566", DateOfBirth="1988-04-21",
-        Name="Bob", LastName="Martin", Email="bob@example.com",
-        Password="bobpwd"
-    )
-
-    idpatient3 = db.insert_patient(PhoneNumber="0478521362", DateOfBirth="2001-04-07",
-                                   Name='Juliette', LastName='Dedong', Email= "jdedong@gmail.com",
-                                   Password="123456")
-    
-    idpatient4 = db.insert_patient(PhoneNumber="0478521362", DateOfBirth="2001-04-07",
-                                   Name='Un', LastName='Deux', Email= "undeux@gmail.com",
-                                   Password="123456")
-
-    # 3. Lier le docteur aux deux patients
-    db.link_doctor_to_patient(iddoctor1, idpatient1)
-    db.link_doctor_to_patient(iddoctor1, idpatient2)
-    db.link_doctor_to_patient(iddoctor2, idpatient3)
-    db.link_doctor_to_patient(iddoctor2, idpatient4)
-
-    # 4. Ajouter des données médicales pour un patient
-    db.insert_patient_data(idpatient1, temperature=37.8, tension="125/85")
-    db.insert_patient_data(idpatient1, temperature=38.2, tension="130/90")
-    db.insert_patient_data(idpatient3, 37.8, '125/80')
-    db.insert_patient_data(idpatient4, 37.5, '110/70')
-    db.insert_patient_data(idpatient4, 37.5, '125/80')
-    db.insert_patient_data(idpatient4, 40, '135/85')
-
-    print("Docteur, patients et données ajoutés avec succès.")
-
-    # 5. Print toutes les tables ainsi voir si ça fonctionne bien
-
-    db.show_table('person')
-    print('----------------------')
-    db.show_table('patient')
-    print('----------------------')
-    db.show_table('doctor')
-    print('----------------------')
-    db.show_table('patient_data')
-    print('----------------------')
-    db.show_table('doctor_patient')
 

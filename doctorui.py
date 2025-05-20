@@ -11,7 +11,7 @@ import matplotlib.dates as mdates
 class Doctor:
     def __init__(self, iddoctor, db):
         self.iddoctor = iddoctor
-        self.db = db
+        self.db = DB(db)
         self.build_window()
     
     def build_window(self):
@@ -65,7 +65,7 @@ class Doctor:
         patients = self.db.get_patients_doctor(self.iddoctor)
         self.patients = patients
         for patient in patients:
-            self.list.insert(tk.END, f"{patient['name']} {patient['lastname']} (ID: {patient['idpatient']})")
+            self.list.insert(tk.END, f"{patient['name']} {patient['lastname']} (ID: {patient['idperson']})")
 
     def patient_select(self, event):
         select = self.list.curselection()
@@ -75,7 +75,7 @@ class Doctor:
 
         index = select[0]
         patient = self.patients[index]
-        idpatient = patient['idpatient']
+        idpatient = patient['idperson']
 
         # Fetch medical data
         data = self.db.get_patient_data(idpatient)
@@ -99,7 +99,7 @@ class Doctor:
 
         #Ajout : Affichage des prescriptions
         prescriptions = self.db.get_patient_prescriptions(idpatient)
-        self.prescription_text.delete('1.0', tk.END)  # Assure-toi que ce widget existe
+        self.prescription_text.delete('1.0', tk.END)  
         if not prescriptions:
             self.prescription_text.insert(tk.END, "No prescription for this patient.")
         else:
@@ -168,7 +168,7 @@ class Doctor:
 
         index = select[0]
         patient = self.patients[index]
-        idpatient = patient['idpatient']
+        idpatient = patient['idperson']
 
         # Fenêtre pour saisir une prescription
         presc_window = tk.Toplevel(self.window)
@@ -202,16 +202,4 @@ class Doctor:
 # Entry point of the app
 if __name__ == '__main__':
     db = DB('projet.db')
-    #iddoctor = 2  # Doctor ID to be adjusted if needed
-    #doctor = Doctor(iddoctor, db)
 
-    # Debug: show database tables in console
-    # db.show_table('person')
-    # print('----------------------')
-    # db.show_table('patient')
-    # print('----------------------')
-    # db.show_table('doctor')
-    # print('----------------------')
-    # db.show_table('patient_data')
-    # print('----------------------')
-    # db.show_table('doctor_patient')

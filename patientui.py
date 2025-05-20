@@ -5,7 +5,7 @@ from dbgestion import DB
 class Patient:
     def __init__(self, idpatient, db):
         self.idpatient = idpatient
-        self.db = db
+        self.db = DB(db)
         self.build_window()
 
     def build_window(self):
@@ -73,16 +73,4 @@ class Patient:
 
 if __name__ == "__main__":
     db = DB("projet.db")
-    # idpatient = 4  # Adjust patient ID if necessary
-    # patient = Patient(idpatient, db)
-
-    # # Debug: display tables content in console
-    # db.show_table('person')
-    # print('----------------------')
-    # db.show_table('patient')
-    # print('----------------------')
-    # db.show_table('doctor')
-    # print('----------------------')
-    # db.show_table('patient_data')
-    # print('----------------------')
-    # db.show_table('doctor_patient')
+ 

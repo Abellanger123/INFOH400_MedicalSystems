@@ -4,12 +4,13 @@ from dbgestion import DB
 import re 
 from patientui import Patient
 from doctorui import Doctor
-
+from account import Account
 
 
 class Login: 
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, dbfile):
+        self.dbfile = dbfile
+        self.db = DB(dbfile)
         self.build()
 
 
@@ -35,6 +36,9 @@ class Login:
 
         #Login button
         tk.Button(self.window, text='Submit', command=self.log).pack(pady=10)
+
+        #New account button
+        tk.Button(self.window, text='New Account', command=self.new_account).pack(pady=10)
         
         self.window.mainloop()
 
@@ -52,12 +56,11 @@ class Login:
             elif auth == 1:
                 messagebox.showerror("Invalid Password", "The password you entered is not correct")
             else:
+                id = self.db.get_id_person_by_email(email)
                 if auth == 'patient':
-                    idp = self.db.get_id_patient(email)
-                    self.is_patient(idp, self.db)
+                    self.is_patient(id, self.dbfile)
                 else : 
-                    idd= self.db.get_id_doctor(email)
-                    self.is_doctor(idd, self.db)
+                    self.is_doctor(id, self.dbfile)
 
 
     def is_patient(self, idpatient, db):
@@ -80,13 +83,17 @@ class Login:
             return True
         else:
             return False
+        
+
+    def new_account(self):
+        Account(self.window)
+
 
 
 def main():
-    db = DB("projet.db")
-    log = Login(db)
+   
+    log = Login('projet.db')
 
 if __name__ == "__main__":
     main()
-
 
