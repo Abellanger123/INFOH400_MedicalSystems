@@ -76,6 +76,17 @@ class DB:
         rows = cur.fetchall()
         cur.close()
         return  [dict(zip(['temperature', 'tension', 'datetime'], row)) for row in rows]
+    
+    def alldoctor(self):
+        cur = self.con.cursor()
+        cur.execute("""
+            SELECT idperson, name, lastname
+            FROM person
+            WHERE role = 'doctor';
+        """)
+        doctors = cur.fetchall()
+        cur.close()
+        return doctors 
 
 
     def __del__(self):

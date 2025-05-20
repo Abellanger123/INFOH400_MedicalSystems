@@ -86,7 +86,7 @@ class Login:
         
 
     def new_account(self):
-        Account(self.window)
+        Account(self.window, self.dbfile)
 
 
 
