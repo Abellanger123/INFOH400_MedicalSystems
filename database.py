@@ -42,32 +42,28 @@ CREATE TABLE IF NOT EXISTS doctor_patient (
     FOREIGN KEY (idpatient) REFERENCES patient(idpatient)
 );
 """)
-
+# Prescription générale
 cur.execute("""
-
 CREATE TABLE IF NOT EXISTS prescription (
     idprescription INTEGER PRIMARY KEY AUTOINCREMENT,
-    idpatient INTEGER,
-    medicament TEXT,
-    frequence TEXT,
-    prise INTEGER DEFAULT 0, -- 0 = non pris, 1 = pris
-    horodatage TEXT,
-    FOREIGN KEY(idpatient) REFERENCES patient(idpatient)
+    idpatient INTEGER NOT NULL,
+    medicament TEXT NOT NULL,
+    start_date TEXT NOT NULL,  -- Format YYYY-MM-DD
+    end_date TEXT NOT NULL,
+    FOREIGN KEY(idpatient) REFERENCES person(idperson)
 );
-
 """)
 
+# Chaque prise programmée
 cur.execute("""
-
-
-CREATE TABLE IF NOT EXISTS prescription_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    prescription_id INTEGER,
-    timestamp TEXT,
-    FOREIGN KEY (prescription_id) REFERENCES prescriptions(id)
+CREATE TABLE IF NOT EXISTS prescription_schedule (
+    idschedule INTEGER PRIMARY KEY AUTOINCREMENT,
+    idprescription INTEGER NOT NULL,
+    date TEXT NOT NULL,       -- Date exacte : YYYY-MM-DD
+    hour TEXT NOT NULL,       -- Heure prévue : HH:MM
+    taken INTEGER DEFAULT 0,  -- 0 = pas encore pris, 1 = pris
+    FOREIGN KEY(idprescription) REFERENCES prescription(idprescription)
 );
-
-
 """)
 
 
