@@ -1,4 +1,6 @@
 import sqlite3 as sql
+from datetime import datetime, timedelta
+
 
 class DB:
     def __init__(self, dbfile):
@@ -102,15 +104,6 @@ class DB:
         for row in rows:
             print(row)
 
-    def add_prescription(self, idpatient, medicament, frequence):
-        cursor = self.con.cursor()
-        print("add_prescription called")
-        cursor.execute("""
-            INSERT INTO prescription (idpatient, medicament, frequence, prise, horodatage)
-            VALUES (?, ?, ?, 0, datetime('now'))
-        """, (idpatient, medicament, frequence))
-        self.con.commit()
-
     def get_prescriptions(self, idpatient):
         cursor = self.con.cursor()
         cursor.execute("""
@@ -132,13 +125,14 @@ class DB:
     def get_patient_prescriptions(self, idpatient):
         cursor = self.con.cursor()
         cursor.execute("""
-            SELECT medicament, frequence, prise
+            SELECT medicament, start_date, end_date
             FROM prescription
             WHERE idpatient = ?
         """, (idpatient,))
         rows = cursor.fetchall()
-        return [{'medicament': r[0], 'frequence': r[1], 'prise': r[2]} for r in rows]
-    
+        cursor.close()
+        return [{'medicament': r[0], 'start_date': r[1], 'end_date': r[2]} for r in rows]
+
     def get_id_person_by_email(self, email):
         cur = self.con.cursor()
         cur.execute("""SELECT idperson FROM person WHERE email = ?;""", (email,))
@@ -157,5 +151,31 @@ class DB:
             return res[0][0]               #return = role
         else: 
             return 1                    #there is no correspondance between the password and the email
+
+    from datetime import datetime, timedelta
+
+    def add_prescription_with_hours(self, idpatient, medicament, start_date, end_date, hours_list):
+        cur = self.con.cursor()
+
+        # Ajouter prescription
+        cur.execute("""
+            INSERT INTO prescription (idpatient, medicament, start_date, end_date)
+            VALUES (?, ?, ?, ?)
+        """, (idpatient, medicament, start_date, end_date))
+        idprescription = cur.lastrowid
+
+        # Ajouter les prises programmées
+        start = datetime.strptime(start_date, "%Y-%m-%d")
+        end = datetime.strptime(end_date, "%Y-%m-%d")
+        while start <= end:
+            for hour in hours_list:
+                cur.execute("""
+                    INSERT INTO prescription_schedule (idprescription, date, hour)
+                    VALUES (?, ?, ?)
+                """, (idprescription, start.strftime("%Y-%m-%d"), hour))
+            start += timedelta(days=1)
+
+        self.con.commit()
+        cur.close()
 
 

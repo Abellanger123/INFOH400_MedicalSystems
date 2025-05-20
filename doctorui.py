@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from datetime import datetime, timedelta
 import matplotlib.dates as mdates
+from tkcalendar import DateEntry
 
 
 
@@ -104,8 +105,9 @@ class Doctor:
             self.prescription_text.insert(tk.END, "No prescription for this patient.")
         else:
             for p in prescriptions:
-                statut = "Taken" if p['prise'] else "Not taken"
-                self.prescription_text.insert(tk.END, f"{p['medicament']} — {p['frequence']} — {statut}\n")
+                self.prescription_text.insert(tk.END,
+                    f"{p['medicament']} — from {p['start_date']} to {p['end_date']}\n")
+
 
     def show_graphs(self):
         # Trigger plotting if data is selected
@@ -160,6 +162,8 @@ class Doctor:
         plt.tight_layout()
         plt.show()
 
+    from tkcalendar import DateEntry
+
     def add_prescription(self):
         select = self.list.curselection()
         if not select:
@@ -170,32 +174,52 @@ class Doctor:
         patient = self.patients[index]
         idpatient = patient['idperson']
 
-        # Fenêtre pour saisir une prescription
+        # Popup window
         presc_window = tk.Toplevel(self.window)
         presc_window.title("Add a prescription")
-        presc_window.geometry("300x200")
+        presc_window.geometry("350x400")
 
-        tk.Label(presc_window, text="Medication :").pack(pady=5)
+        # Medication name
+        tk.Label(presc_window, text="Medication:").pack(pady=5)
         med_entry = tk.Entry(presc_window)
         med_entry.pack(pady=5)
 
-        tk.Label(presc_window, text="Frequency:").pack(pady=5)
-        freq_entry = tk.Entry(presc_window)
-        freq_entry.pack(pady=5)
+        # Start date
+        tk.Label(presc_window, text="Start date:").pack()
+        start_date = DateEntry(presc_window, date_pattern='yyyy-mm-dd')
+        start_date.pack(pady=5)
+
+        # End date
+        tk.Label(presc_window, text="End date:").pack()
+        end_date = DateEntry(presc_window, date_pattern='yyyy-mm-dd')
+        end_date.pack(pady=5)
+
+        # Time entries
+        tk.Label(presc_window, text="Hours (max 4):").pack(pady=5)
+
+        hour_entries = []
+        for i in range(4):
+            entry = tk.Entry(presc_window, width=10)
+            entry.insert(0, "")  # leave empty by default
+            entry.pack()
+            hour_entries.append(entry)
 
         def save_prescription():
             med = med_entry.get().strip()
-            freq = freq_entry.get().strip()
+            sd = start_date.get_date().strftime('%Y-%m-%d')
+            ed = end_date.get_date().strftime('%Y-%m-%d')
+            hours = [e.get().strip() for e in hour_entries if e.get().strip()]
 
-            if not med or not freq:
-                messagebox.showerror("Error", "All fields must be filled.")
+            if not med or not hours:
+                messagebox.showerror("Error", "Please fill medication and at least one hour.")
                 return
 
-            self.db.add_prescription(idpatient, med, freq)
-            messagebox.showinfo("Succes", "Prescription added")
+            self.db.add_prescription_with_hours(idpatient, med, sd, ed, hours)
+            messagebox.showinfo("Success", "Prescription added successfully.")
             presc_window.destroy()
 
         tk.Button(presc_window, text="Submit", command=save_prescription).pack(pady=10)
+
 
 
 

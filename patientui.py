@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
 from dbgestion import DB
+from datetime import datetime
+from tkcalendar import DateEntry
+
 
 class Patient:
     def __init__(self, idpatient, db):
@@ -32,8 +35,16 @@ class Patient:
         self.prescription_frame = tk.Frame(self.window)
         self.prescription_frame.pack(pady=5)
 
-        self.display_prescriptions()
+        tk.Label(self.window, text="Select date to view:").pack()
 
+        self.date_entry = DateEntry(self.window, width=30, background='darkblue',
+                                    foreground='white', borderwidth=2, date_pattern='yyyy-mm-dd')
+        self.date_entry.set_date(datetime.now())  # Default to today
+        self.date_entry.pack()
+
+        tk.Button(self.window, text="Show Prescriptions", command=self.refresh_prescriptions).pack(pady=5)
+
+        self.refresh_prescriptions()
         self.window.mainloop()
 
     def submit_data(self):
@@ -45,30 +56,49 @@ class Patient:
         except ValueError:
             messagebox.showerror("Error", "Please enter a valid temperature.")
 
-    def display_prescriptions(self):
-        prescriptions = self.db.get_prescriptions(self.idpatient)
-        for idprescription, medication, frequency, taken in prescriptions:
+
+    def display_prescriptions_by_date(self, date):
+        cur = self.db.con.cursor()
+        cur.execute("""
+            SELECT ps.idschedule, p.medicament, ps.hour, ps.taken
+            FROM prescription_schedule ps
+            JOIN prescription p ON ps.idprescription = p.idprescription
+            WHERE p.idpatient = ? AND ps.date = ?
+            ORDER BY ps.hour
+        """, (self.idpatient, date))
+        rows = cur.fetchall()
+        cur.close()
+
+        for idschedule, medicament, hour, taken in rows:
             frame = tk.Frame(self.prescription_frame)
             frame.pack(anchor='w', padx=10, pady=2, fill='x')
 
-            # Prescription text
-            label = tk.Label(frame, text=f"{medication} - {frequency}")
+            label = tk.Label(frame, text=f"{medicament} — {hour}")
             label.pack(side='left')
 
-            # "Taken" checkbox
             var = tk.IntVar(value=taken)
-            checkbox = tk.Checkbutton(frame, text="Taken", variable=var, command=lambda i=idprescription, v=var: self.mark_taken(i, v))
-
-            # Prevent unchecking if already taken
-            # if taken:
-            #     checkbox.config(state=tk.DISABLED)
-
+            checkbox = tk.Checkbutton(frame, text="Taken", variable=var,
+                                    command=lambda i=idschedule, v=var: self.mark_taken_schedule(i, v))
             checkbox.pack(side='right')
 
-    def mark_taken(self, idprescription, var):
+
+    def mark_taken_schedule(self, idschedule, var):
         if var.get() == 1:
-            self.db.mark_as_taken(idprescription)
-            messagebox.showinfo("Thank you", "Marked as taken.")
+            cur = self.db.con.cursor()
+            cur.execute("UPDATE prescription_schedule SET taken = 1 WHERE idschedule = ?", (idschedule,))
+            self.db.con.commit()
+            cur.close()
+            messagebox.showinfo("Merci", "Prise enregistrée.")
+
+    def refresh_prescriptions(self):
+        for widget in self.prescription_frame.winfo_children():
+            widget.destroy()
+
+        date = self.date_entry.get().strip()
+        self.display_prescriptions_by_date(date)
+
+
+
 
 
 if __name__ == "__main__":
