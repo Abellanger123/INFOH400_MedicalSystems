@@ -13,7 +13,10 @@ class Doctor:
     def __init__(self, iddoctor, db):
         self.iddoctor = iddoctor
         self.db = DB(db)
-        self.build_window()
+        self.last_alert_check = None
+        self.build_window()  # Crée les éléments, mais NE FAIT PAS encore .mainloop()
+        self.check_alerts_loop()
+        self.window.mainloop()  # ← maintenant qu’on a tout lancé, on démarre la boucle
     
     def build_window(self):
         self.window = tk.Tk()
@@ -57,9 +60,6 @@ class Doctor:
         self.prescription_text = tk.Text(self.window, height=6)
         self.prescription_text.pack(fill=tk.BOTH, expand=True)
 
-        
-
-        self.window.mainloop()
 
     def load_patients(self):
         # Load the doctor's patients from the database
@@ -220,6 +220,22 @@ class Doctor:
 
         tk.Button(presc_window, text="Submit", command=save_prescription).pack(pady=10)
 
+    def check_alerts_loop(self):
+        alerts = self.db.get_alerts_for_doctor(self.iddoctor)
+        new_alerts = []
+
+        for dt_str, msg, name, lastname in alerts:
+            alert_time = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+            if self.last_alert_check is None or alert_time > self.last_alert_check:
+                new_alerts.append((alert_time, msg, name, lastname))
+
+        if new_alerts:
+            self.last_alert_check = new_alerts[0][0]  # latest alert timestamp
+            alert_text = "\n".join([f"{n} {l}: {m}" for _, m, n, l in new_alerts])
+            messagebox.showwarning("⚠️ Patient Alert", alert_text)
+
+        # Re-check every 60 seconds
+        self.window.after(60000, self.check_alerts_loop)
 
 
 

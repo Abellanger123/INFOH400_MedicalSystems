@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS prescription_schedule (
 );
 """)
 
+cur.execute("""
+CREATE TABLE IF NOT EXISTS alerts (
+    idalert INTEGER PRIMARY KEY AUTOINCREMENT,
+    idpatient INTEGER,
+    message TEXT,
+    datetime TEXT,
+    FOREIGN KEY (idpatient) REFERENCES person(idperson)
+);
+""")
+
+
 
 con.commit()
 cur.close()

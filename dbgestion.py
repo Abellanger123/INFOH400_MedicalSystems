@@ -18,23 +18,26 @@ class DB:
         return idperson
     
     def insert_patient_data(self, idpatient, temperature, tension, datetime=None):
-        cur = self.con.cursor()
-        
-        # Si aucune date/heure n'est précisée, on utilise l'heure actuelle
+        from datetime import datetime as dt
         if datetime is None:
-            from datetime import datetime as dt
             datetime = dt.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Insertion dans la table patient_data
-        cur.execute("""
-            INSERT INTO patient_data (idpatient, temperature, tension, datetime)
-            VALUES (?, ?, ?, ?) RETURNING iddata;
-        """, (idpatient, temperature, tension, datetime))
-        
-        iddata = cur.fetchone()[0]
-        self.con.commit()
-        cur.close()
+
+        with self.con:  # starts and commits transaction safely
+            cur = self.con.cursor()
+
+            cur.execute("""
+                INSERT INTO patient_data (idpatient, temperature, tension, datetime)
+                VALUES (?, ?, ?, ?) RETURNING iddata;
+            """, (idpatient, temperature, tension, datetime))
+            iddata = cur.fetchone()[0]
+
+            # Insert alerts using the same cursor and transaction
+            self._insert_alerts_if_needed(cur, idpatient, temperature, tension, datetime)
+
+            cur.close()
+
         return iddata
+
     
     def link_doctor_to_patient(self, iddoctor, idpatient):
         cur = self.con.cursor()
@@ -174,8 +177,50 @@ class DB:
                     VALUES (?, ?, ?)
                 """, (idprescription, start.strftime("%Y-%m-%d"), hour))
             start += timedelta(days=1)
-
+ 
         self.con.commit()
         cur.close()
 
+    def _insert_alerts_if_needed(self, cur, idpatient, temperature, tension, datetime):
+        alerts = []
+
+        if temperature > 38.5:
+            alerts.append(f"High temperature: {temperature}°C")
+        elif temperature < 35.0:
+            alerts.append(f"Low temperature: {temperature}°C")
+
+        try:
+            systolic, diastolic = map(int, tension.split("/"))
+            if systolic > 140:
+                alerts.append(f"High systolic pressure: {systolic}")
+            elif systolic < 90:
+                alerts.append(f"Low systolic pressure: {systolic}")
+            if diastolic > 90:
+                alerts.append(f"High diastolic pressure: {diastolic}")
+            elif diastolic < 60:
+                alerts.append(f"Low diastolic pressure: {diastolic}")
+        except:
+            alerts.append("⚠️ Invalid blood pressure format.")
+
+        for msg in alerts:
+            cur.execute("""
+                INSERT INTO alerts (idpatient, message, datetime)
+                VALUES (?, ?, ?)
+            """, (idpatient, msg, datetime))
+
+
+
+    def get_alerts_for_doctor(self, iddoctor):
+        cursor = self.con.cursor()
+        cursor.execute("""
+            SELECT a.datetime, a.message, p.name, p.lastname
+            FROM alerts a
+            JOIN person p ON a.idpatient = p.idperson
+            JOIN doctor_patient dp ON dp.idpatient = p.idperson
+            WHERE dp.iddoctor = ?
+            ORDER BY a.datetime DESC
+        """, (iddoctor,))
+        rows = cursor.fetchall()
+        cursor.close()
+        return rows
 
