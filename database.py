@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS patient_data (
     idpatient INTEGER NOT NULL,
     temperature REAL,
     tension TEXT, 
+    heartrate INTEGER,
+    glucose REAL,
     datetime DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (idpatient) REFERENCES patient(idpatient)
             );""")

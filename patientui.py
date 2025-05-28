@@ -3,6 +3,8 @@ from tkinter import messagebox
 from dbgestion import DB
 from datetime import datetime
 from tkcalendar import DateEntry
+import sqlite3
+
 
 
 class Patient:
@@ -26,6 +28,14 @@ class Patient:
         self.bpEntry = tk.Entry(self.window, width=30)
         self.bpEntry.pack()
 
+        tk.Label(self.window, text="Heart Rate (bpm):").pack()
+        self.hrEntry = tk.Entry(self.window, width=30)
+        self.hrEntry.pack()
+
+        tk.Label(self.window, text="Glucose (mg/dL):").pack()
+        self.glucoseEntry = tk.Entry(self.window, width=30)
+        self.glucoseEntry.pack()
+
         btn_submit = tk.Button(self.window, text="Submit Data", command=self.submit_data)
         btn_submit.pack(pady=10)
 
@@ -45,16 +55,24 @@ class Patient:
         tk.Button(self.window, text="Show Prescriptions", command=self.refresh_prescriptions).pack(pady=5)
 
         self.refresh_prescriptions()
+        self.check_prescription_alerts()
+        self.check_if_reminder_needed()
+
+
         self.window.mainloop()
 
     def submit_data(self):
         try:
             temp = float(self.tempEntry.get())
             bp = self.bpEntry.get()
-            self.db.insert_patient_data(self.idpatient, temp, bp)
+            hr = int(self.hrEntry.get())
+            glucose = float(self.glucoseEntry.get())
+
+            self.db.insert_patient_data(self.idpatient, temp, bp, hr, glucose)
             messagebox.showinfo("Success", "Data has been saved.")
         except ValueError:
-            messagebox.showerror("Error", "Please enter a valid temperature.")
+            messagebox.showerror("Error", "Please enter valid numeric values.")
+
 
 
     def display_prescriptions_by_date(self, date):
@@ -96,6 +114,39 @@ class Patient:
 
         date = self.date_entry.get().strip()
         self.display_prescriptions_by_date(date)
+
+    def check_prescription_alerts(self):
+        alerts = self.db.get_upcoming_prescription_alerts(self.idpatient)
+
+        if alerts:
+            from tkinter import messagebox
+            message = "\n".join([f"{med} at {hour}" for hour, med in alerts])
+            messagebox.showinfo("💊 Medication Reminder", f"You have scheduled doses to take:\n\n{message}")
+
+    
+
+    def check_if_reminder_needed(self):
+        now = datetime.now()
+        if now.hour < 14:
+            return  # Pas besoin de rappeler avant 14h
+
+        today = now.strftime("%Y-%m-%d")
+
+        # Connexion séparée pour éviter les conflits de thread
+        con = sqlite3.connect("projet.db")
+        cur = con.cursor()
+        cur.execute("""
+            SELECT COUNT(*) FROM patient_data
+            WHERE idpatient = ? AND date(datetime) = ?
+        """, (self.idpatient, today))
+        count = cur.fetchone()[0]
+        con.close()
+
+        if count == 0:
+            messagebox.showinfo("📝 Reminder", "Please enter your physiological data for today.")
+
+    
+
 
 
 

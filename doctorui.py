@@ -13,10 +13,9 @@ class Doctor:
     def __init__(self, iddoctor, db):
         self.iddoctor = iddoctor
         self.db = DB(db)
-        self.last_alert_check = None
-        self.build_window()  # Crée les éléments, mais NE FAIT PAS encore .mainloop()
-        self.check_alerts_loop()
-        self.window.mainloop()  # ← maintenant qu’on a tout lancé, on démarre la boucle
+        self.build_window()       
+        self.check_initial_alerts()    
+        self.window.mainloop()         
     
     def build_window(self):
         self.window = tk.Tk()
@@ -39,6 +38,15 @@ class Doctor:
         self.bp_text = tk.Text(self.window, height=6)
         self.bp_text.pack(fill=tk.BOTH, expand=True)
 
+        # Heart rate display
+        tk.Label(self.window, text="Heart rate of the patient:").pack()
+        self.hr_text = tk.Text(self.window, height=4)
+        self.hr_text.pack(fill=tk.BOTH, expand=True)
+
+        # Glucose level display
+        tk.Label(self.window, text="Glucose level of the patient:").pack()
+        self.glucose_text = tk.Text(self.window, height=4)
+        self.glucose_text.pack(fill=tk.BOTH, expand=True)
 
         # Button to show plots
         self.plot_button = tk.Button(self.window, text="View Graphs", command=self.show_graphs)
@@ -83,30 +91,52 @@ class Doctor:
 
         self.temp_text.delete('1.0', tk.END)
         self.bp_text.delete('1.0', tk.END)
+        self.hr_text.delete('1.0', tk.END)
+        self.glucose_text.delete('1.0', tk.END)
+        self.prescription_text.delete('1.0', tk.END)
 
         if not data:
             self.temp_text.insert(tk.END, "No temperature data available for this patient.")
             self.bp_text.insert(tk.END, "No blood pressure data available for this patient.")
+            self.hr_text.insert(tk.END, "No heart rate data available for this patient.")
+            self.glucose_text.insert(tk.END, "No glucose data available for this patient.")
             self.plot_button.config(state=tk.DISABLED)
             self.selected_patient_data = None
         else:
             for row in data:
                 self.temp_text.insert(tk.END, f"{row['datetime']} — {row['temperature']}°C\n")
                 self.bp_text.insert(tk.END, f"{row['datetime']} — {row['tension']}\n")
+                self.hr_text.insert(tk.END, f"{row['datetime']} — {row.get('heartrate', 'N/A')} bpm\n")
+                self.glucose_text.insert(tk.END, f"{row['datetime']} — {row.get('glucose', 'N/A')} mg/dL\n")
             self.plot_button.config(state=tk.NORMAL)
             self.selected_patient_data = data
 
         self.selected_patient_name = f"{patient['name']} {patient['lastname']}"
 
-        #Ajout : Affichage des prescriptions
+        # --- Prescriptions résumé ---
         prescriptions = self.db.get_patient_prescriptions(idpatient)
-        self.prescription_text.delete('1.0', tk.END)  
         if not prescriptions:
-            self.prescription_text.insert(tk.END, "No prescription for this patient.")
+            self.prescription_text.insert(tk.END, "No prescription for this patient.\n")
         else:
             for p in prescriptions:
-                self.prescription_text.insert(tk.END,
-                    f"{p['medicament']} — from {p['start_date']} to {p['end_date']}\n")
+                self.prescription_text.insert(
+                    tk.END,
+                    f"{p['medicament']} — from {p['start_date']} to {p['end_date']}\n"
+                )
+
+        # --- Détail journalier des prises ---
+        schedules = self.db.get_prescription_schedule_for_patient(idpatient)
+        if schedules:
+            self.prescription_text.insert(tk.END, "\nDetailed schedule:\n")
+            for med, date, hour, taken in schedules:
+                status = "✅ Taken" if taken else "❌ Not taken"
+                self.prescription_text.insert(
+                    tk.END,
+                    f"{date} at {hour} — {med} — {status}\n"
+                )
+        else:
+            self.prescription_text.insert(tk.END, "\nNo scheduled doses found.")
+
 
 
     def show_graphs(self):
@@ -123,44 +153,56 @@ class Doctor:
             print("No data to display.")
             return
 
-        # Parse data
         dates = [datetime.strptime(entry["datetime"], "%Y-%m-%d %H:%M:%S") for entry in data]
         temperatures = [entry["temperature"] for entry in data]
         systolic = [int(entry["tension"].split("/")[0]) for entry in data]
         diastolic = [int(entry["tension"].split("/")[1]) for entry in data]
 
-        # Create plot
-        plt.figure(figsize=(10, 6))
+        heartrates = [entry.get("heartrate") for entry in data]
+        glucose = [entry.get("glucose") for entry in data]
 
-        # Plot temperature
-        plt.subplot(2, 1, 1)
+        plt.figure(figsize=(12, 10))
+
+        # Température
+        plt.subplot(4, 1, 1)
         plt.plot(dates, temperatures, marker='o', color='red')
-        plt.title(f"Temperature evolution - {patient_name}")
-        plt.xlabel("Date")
+        plt.title(f"Temperature Evolution - {patient_name}")
         plt.ylabel("Temperature (°C)")
         plt.grid(True)
-
-        # Format x-axis
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator())
 
-        # Plot blood pressure
-        plt.subplot(2, 1, 2)
+        # Pression artérielle
+        plt.subplot(4, 1, 2)
         plt.plot(dates, systolic, marker='o', label='Systolic')
         plt.plot(dates, diastolic, marker='o', label='Diastolic')
-        plt.title(f"Blood pressure evolution - {patient_name}")
-        plt.xlabel("Date")
+        plt.title("Blood Pressure Evolution")
         plt.ylabel("Pressure (mmHg)")
         plt.legend()
         plt.grid(True)
-
-        # Format x-axis
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator())
 
-        # Improve layout
+        # Fréquence cardiaque
+        if any(h is not None for h in heartrates):
+            plt.subplot(4, 1, 3)
+            plt.plot(dates, heartrates, marker='o', color='blue')
+            plt.title("Heart Rate Evolution")
+            plt.ylabel("BPM")
+            plt.grid(True)
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
+
+        # Glycémie
+        if any(g is not None for g in glucose):
+            plt.subplot(4, 1, 4)
+            plt.plot(dates, glucose, marker='o', color='green')
+            plt.title("Glucose Level Evolution")
+            plt.xlabel("Date")
+            plt.ylabel("mg/dL")
+            plt.grid(True)
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%d-%m"))
+
         plt.tight_layout()
         plt.show()
+
 
     from tkcalendar import DateEntry
 
@@ -220,22 +262,19 @@ class Doctor:
 
         tk.Button(presc_window, text="Submit", command=save_prescription).pack(pady=10)
 
-    def check_alerts_loop(self):
+    def check_initial_alerts(self):
         alerts = self.db.get_alerts_for_doctor(self.iddoctor)
-        new_alerts = []
 
-        for dt_str, msg, name, lastname in alerts:
-            alert_time = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-            if self.last_alert_check is None or alert_time > self.last_alert_check:
-                new_alerts.append((alert_time, msg, name, lastname))
+        if alerts:
+            from tkinter import messagebox
 
-        if new_alerts:
-            self.last_alert_check = new_alerts[0][0]  # latest alert timestamp
-            alert_text = "\n".join([f"{n} {l}: {m}" for _, m, n, l in new_alerts])
-            messagebox.showwarning("⚠️ Patient Alert", alert_text)
+            for dt, msg, name, lastname in alerts:
+                message = f"{dt} — {name} {lastname}\n{msg}"
+                messagebox.showwarning("⚠️ Patient Alert", message)
 
-        # Re-check every 60 seconds
-        self.window.after(60000, self.check_alerts_loop)
+            # Supprimer les alertes une fois affichées
+            self.db.delete_alerts_for_doctor(self.iddoctor)
+
 
 
 

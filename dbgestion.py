@@ -17,26 +17,24 @@ class DB:
         cur.close()
         return idperson
     
-    def insert_patient_data(self, idpatient, temperature, tension, datetime=None):
-        from datetime import datetime as dt
+    def insert_patient_data(self, idpatient, temperature, tension, heartrate=None, glucose=None, datetime=None):
+        cur = self.con.cursor()
+
         if datetime is None:
+            from datetime import datetime as dt
             datetime = dt.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        with self.con:  # starts and commits transaction safely
-            cur = self.con.cursor()
+        cur.execute("""
+            INSERT INTO patient_data (idpatient, temperature, tension, heartrate, glucose, datetime)
+            VALUES (?, ?, ?, ?, ?, ?) RETURNING iddata;
+        """, (idpatient, temperature, tension, heartrate, glucose, datetime))
 
-            cur.execute("""
-                INSERT INTO patient_data (idpatient, temperature, tension, datetime)
-                VALUES (?, ?, ?, ?) RETURNING iddata;
-            """, (idpatient, temperature, tension, datetime))
-            iddata = cur.fetchone()[0]
-
-            # Insert alerts using the same cursor and transaction
-            self._insert_alerts_if_needed(cur, idpatient, temperature, tension, datetime)
-
-            cur.close()
-
+        iddata = cur.fetchone()[0]
+        self._insert_alerts_if_needed(cur, idpatient, temperature, tension, heartrate, glucose, datetime)
+        self.con.commit()
+        cur.close()
         return iddata
+
 
     
     def link_doctor_to_patient(self, iddoctor, idpatient):
@@ -70,17 +68,21 @@ class DB:
         cur.close()
         return [dict(zip(['idperson', 'name', 'lastname'], row)) for row in rows]
         
-    def get_patient_data(self,idpatient):
+    def get_patient_data(self, idpatient):
         cur = self.con.cursor()
         cur.execute("""
-            SELECT temperature, tension, datetime
+            SELECT temperature, tension, heartrate, glucose, datetime
             FROM patient_data
             WHERE idpatient = ?
             ORDER BY datetime DESC
         """, (idpatient,))
         rows = cur.fetchall()
         cur.close()
-        return  [dict(zip(['temperature', 'tension', 'datetime'], row)) for row in rows]
+        return [
+            dict(zip(['temperature', 'tension', 'heartrate', 'glucose', 'datetime'], row))
+            for row in rows
+        ]
+
     
     def alldoctor(self):
         cur = self.con.cursor()
@@ -181,7 +183,7 @@ class DB:
         self.con.commit()
         cur.close()
 
-    def _insert_alerts_if_needed(self, cur, idpatient, temperature, tension, datetime):
+    def _insert_alerts_if_needed(self, cur, idpatient, temperature, tension, heartrate, glucose, datetime):
         alerts = []
 
         if temperature > 38.5:
@@ -202,11 +204,24 @@ class DB:
         except:
             alerts.append("⚠️ Invalid blood pressure format.")
 
+        if heartrate is not None:
+            if heartrate > 100:
+                alerts.append(f"High heart rate: {heartrate} bpm")
+            elif heartrate < 50:
+                alerts.append(f"Low heart rate: {heartrate} bpm")
+
+        if glucose is not None:
+            if glucose > 180:
+                alerts.append(f"High glucose level: {glucose} mg/dL")
+            elif glucose < 70:
+                alerts.append(f"Low glucose level: {glucose} mg/dL")
+
         for msg in alerts:
             cur.execute("""
                 INSERT INTO alerts (idpatient, message, datetime)
                 VALUES (?, ?, ?)
             """, (idpatient, msg, datetime))
+
 
 
 
@@ -223,4 +238,54 @@ class DB:
         rows = cursor.fetchall()
         cursor.close()
         return rows
+    
+    def delete_alerts_for_doctor(self, iddoctor):
+        cur = self.con.cursor()
+        cur.execute("""
+            DELETE FROM alerts
+            WHERE idpatient IN (
+                SELECT idpatient FROM doctor_patient WHERE iddoctor = ?
+            )
+        """, (iddoctor,))
+        self.con.commit()
+        cur.close()
+
+    def get_prescription_schedule_for_patient(self, idpatient):
+        cur = self.con.cursor()
+        cur.execute("""
+            SELECT p.medicament, ps.date, ps.hour, ps.taken
+            FROM prescription p
+            JOIN prescription_schedule ps ON p.idprescription = ps.idprescription
+            WHERE p.idpatient = ?
+            ORDER BY ps.date, ps.hour
+        """, (idpatient,))
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+    
+
+    from datetime import datetime, timedelta
+
+    def get_upcoming_prescription_alerts(self, idpatient, within_minutes=15):
+        now = datetime.now()
+        lower_bound = (now - timedelta(minutes=within_minutes)).strftime("%H:%M")
+        upper_bound = (now + timedelta(minutes=within_minutes)).strftime("%H:%M")
+        today = now.strftime("%Y-%m-%d")
+
+        cur = self.con.cursor()
+        cur.execute("""
+            SELECT ps.hour, p.medicament
+            FROM prescription_schedule ps
+            JOIN prescription p ON ps.idprescription = p.idprescription
+            WHERE p.idpatient = ?
+            AND ps.date = ?
+            AND ps.taken = 0
+            AND ps.hour BETWEEN ? AND ?
+        """, (idpatient, today, lower_bound, upper_bound))
+        results = cur.fetchall()
+        cur.close()
+        return results
+
+
+
 
