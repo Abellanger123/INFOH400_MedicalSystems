@@ -106,7 +106,7 @@ class Patient:
             cur.execute("UPDATE prescription_schedule SET taken = 1 WHERE idschedule = ?", (idschedule,))
             self.db.con.commit()
             cur.close()
-            messagebox.showinfo("Merci", "Prise enregistrée.")
+            messagebox.showinfo("Thank you", "Taken dose saved.")
 
     def refresh_prescriptions(self):
         for widget in self.prescription_frame.winfo_children():
